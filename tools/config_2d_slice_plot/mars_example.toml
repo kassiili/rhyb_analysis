@@ -1,0 +1,98 @@
+# Each [[parameter]] block defines one panel to be plotted.
+#
+# Keys
+# ----
+# param     : variable name as it appears in the VLSV file
+# type      : one of  magnitude | scalar | xcomp | ycomp | zcomp | nvO
+# label     : colorbar title, LaTeX markup accepted
+# log       : 1 = logarithmic colour scale, 0 = linear
+# lims      : [min, max] in the unit given below (i.e. after the unit scaling)
+# unit      : divisor applied to the raw VLSV value before plotting
+#             (e.g. 1e-9 means the raw SI value is divided by 1e-9, so the
+#              plot is in nT when the VLSV file stores values in T)
+# colormap  : any Matplotlib colormap name
+# filename  : prefix used when constructing the output PNG file name
+# sigma     : Gaussian smoothing σ passed to gaussian_filter;
+#             set to -1 to disable smoothing
+
+
+# ---------------------------------------------------------------------------
+# Main config
+# ---------------------------------------------------------------------------
+
+[header]
+Ncores              = 2
+outputFolder        = "/home/kassiili/rhyb/rhyb_analysis/tools/test_figures_2d_slice_plot"
+runConfig           = "/home/kassiili/rhyb/rhyb_analysis/mars_example/mars.cfg"
+runFolder           = "/home/kassiili/rhyb/rhyb_analysis/mars_example/sim_data"
+runDescr            = "mars_example"
+Robject             = 3390e3
+tStartThisProcess   = 0
+tEndThisProcess     = 4000
+tStartGlobal        = 0
+tEndGlobal          = 4000
+xPlane              = -2.0
+yPlane              = 0.0
+zPlane              = 0.0
+axisLimsZoom        = -1
+showPlanet          = [1, 1, 0]
+
+# ---------------------------------------------------------------------------
+# Magnetic field  (cellB)
+# ---------------------------------------------------------------------------
+
+[[parameter]]
+param    = "cellB"
+type     = "magnitude"
+label    = "$|B|$ [nT]"
+log      = 0
+lims     = [0.0, 40.0e-9]
+unit     = 1e-9
+colormap = "inferno"
+filename = "B"
+sigma    = -1
+
+# ---------------------------------------------------------------------------
+# Number densities
+# ---------------------------------------------------------------------------
+
+[[parameter]]
+param    = "n_H+sw_ave"
+type     = "scalar"
+label    = "$n$(H$^+_\\mathrm{sw}$) [m$^{-3}$]"
+log      = 1
+lims     = [1e4, 1e9]
+unit     = 1.0
+colormap = "inferno"
+filename = "Hsw_n"
+sigma    = -1
+
+# ---------------------------------------------------------------------------
+# Solar-wind proton bulk velocity  (v_H+sw_ave)
+# ---------------------------------------------------------------------------
+
+[[parameter]]
+param    = "v_H+sw_ave"
+type     = "magnitude"
+label    = "$|U|$(H$^+_\\mathrm{sw}$) [km/s]"
+log      = 0
+lims     = [0.0, 700.0]
+unit     = 1e3
+colormap = "inferno"
+filename = "Hsw_U"
+sigma    = -1
+
+# ---------------------------------------------------------------------------
+# Solar-wind proton temperature  (T_H+sw)
+# ---------------------------------------------------------------------------
+
+[[parameter]]
+param    = "T_H+sw"
+type     = "scalar"
+label    = "$T$(H$^+_\\mathrm{sw}$) [K]"
+log      = 1
+lims     = [1e5, 1e8]
+unit     = 1.0
+colormap = "inferno"
+filename = "Hsw_T"
+sigma    = -1

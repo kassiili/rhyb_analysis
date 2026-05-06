@@ -1,0 +1,361 @@
+# plot_parameters.toml
+#
+# Each [[parameter]] block defines one panel to be plotted.
+#
+# Keys
+# ----
+# param     : variable name as it appears in the VLSV file
+# type      : one of  magnitude | scalar | xcomp | ycomp | zcomp | nvO
+# label     : colorbar title, LaTeX markup accepted
+# log       : 1 = logarithmic colour scale, 0 = linear
+# lims      : [min, max] in the unit given below (i.e. after the unit scaling)
+# unit      : divisor applied to the raw VLSV value before plotting
+#             (e.g. 1e-9 means the raw SI value is divided by 1e-9, so the
+#              plot is in nT when the VLSV file stores values in T)
+# colormap  : any Matplotlib colormap name
+# filename  : prefix used when constructing the output PNG file name
+# sigma     : Gaussian smoothing σ passed to gaussian_filter;
+#             set to -1 to disable smoothing
+
+
+# ---------------------------------------------------------------------------
+# Main config
+# ---------------------------------------------------------------------------
+
+[header]
+runFolder           = "/home/kassiili/rhyb/rhyb_analysis/mars_example/sim_data"
+runDescr            = "mars_example"
+Robject             = 3390e3
+tStartThisProcess   = 0
+tEndThisProcess     = 4000
+tStartGlobal        = 0
+tEndGlobal          = 4000
+
+# ---------------------------------------------------------------------------
+# Magnetic field  (cellB)
+# ---------------------------------------------------------------------------
+
+[[parameter]]
+param    = "cellB"
+type     = "magnitude"
+label    = "$|B|$ [nT]"
+log      = 0
+lims     = [0.0, 40.0]
+unit     = 1e-9
+colormap = "inferno"
+filename = "B"
+sigma    = -1
+
+[[parameter]]
+param    = "cellB"
+type     = "xcomp"
+label    = "$B_x$ [nT]"
+log      = 0
+lims     = [-20.0, 20.0]
+unit     = 1e-9
+colormap = "seismic"
+filename = "Bx"
+sigma    = -1
+
+[[parameter]]
+param    = "cellB"
+type     = "ycomp"
+label    = "$B_y$ [nT]"
+log      = 0
+lims     = [-20.0, 20.0]
+unit     = 1e-9
+colormap = "seismic"
+filename = "By"
+sigma    = -1
+
+[[parameter]]
+param    = "cellB"
+type     = "zcomp"
+label    = "$B_z$ [nT]"
+log      = 0
+lims     = [-20.0, 20.0]
+unit     = 1e-9
+colormap = "seismic"
+filename = "Bz"
+sigma    = -1
+
+# ---------------------------------------------------------------------------
+# Time-averaged magnetic field  (cellBAverage)
+# ---------------------------------------------------------------------------
+
+[[parameter]]
+param    = "cellBAverage"
+type     = "magnitude"
+label    = "$|B|$ [nT]"
+log      = 0
+lims     = [0.0, 40.0]
+unit     = 1e-9
+colormap = "inferno"
+filename = "B_ave"
+sigma    = -1
+
+[[parameter]]
+param    = "cellBAverage"
+type     = "xcomp"
+label    = "$B_x$ [nT]"
+log      = 0
+lims     = [-20.0, 20.0]
+unit     = 1e-9
+colormap = "seismic"
+filename = "Bx_ave"
+sigma    = -1
+
+[[parameter]]
+param    = "cellBAverage"
+type     = "ycomp"
+label    = "$B_y$ [nT]"
+log      = 0
+lims     = [-20.0, 20.0]
+unit     = 1e-9
+colormap = "seismic"
+filename = "By_ave"
+sigma    = -1
+
+[[parameter]]
+param    = "cellBAverage"
+type     = "zcomp"
+label    = "$B_z$ [nT]"
+log      = 0
+lims     = [-20.0, 20.0]
+unit     = 1e-9
+colormap = "seismic"
+filename = "Bz_ave"
+sigma    = -1
+
+# ---------------------------------------------------------------------------
+# Number densities
+# ---------------------------------------------------------------------------
+
+[[parameter]]
+param    = "n_H+sw_ave"
+type     = "scalar"
+label    = "$n$(H$^+_\\mathrm{sw}$) [m$^{-3}$]"
+log      = 1
+lims     = [1e4, 1e9]
+unit     = 1.0
+colormap = "inferno"
+filename = "Hsw_n"
+sigma    = -1
+
+[[parameter]]
+param    = "n_O+_ave"
+type     = "scalar"
+label    = "$n$(O$^{+}_\\mathrm{planet}$) [m$^{-3}$]"
+log      = 1
+lims     = [400.0, 4e7]
+unit     = 1.0
+colormap = "inferno"
+filename = "Oplanet_n"
+sigma    = -1
+
+# ---------------------------------------------------------------------------
+# Electric field  (nodeE)
+# ---------------------------------------------------------------------------
+
+[[parameter]]
+param    = "nodeE"
+type     = "magnitude"
+label    = "$|E|$ [V/m]"
+log      = 1
+lims     = [1e-4, 0.1]
+unit     = 1.0
+colormap = "inferno"
+filename = "E"
+sigma    = -1
+
+[[parameter]]
+param    = "nodeE"
+type     = "xcomp"
+label    = "$E_x$ [mV/m]"
+log      = 0
+lims     = [-20.0, 20.0]
+unit     = 1e-3
+colormap = "seismic"
+filename = "Ex"
+sigma    = -1
+
+[[parameter]]
+param    = "nodeE"
+type     = "ycomp"
+label    = "$E_y$ [mV/m]"
+log      = 0
+lims     = [-20.0, 20.0]
+unit     = 1e-3
+colormap = "seismic"
+filename = "Ey"
+sigma    = -1
+
+[[parameter]]
+param    = "nodeE"
+type     = "zcomp"
+label    = "$E_z$ [mV/m]"
+log      = 0
+lims     = [-20.0, 20.0]
+unit     = 1e-3
+colormap = "seismic"
+filename = "Ez"
+sigma    = -1
+
+# ---------------------------------------------------------------------------
+# Electron bulk velocity  (cellUe)
+# ---------------------------------------------------------------------------
+
+[[parameter]]
+param    = "cellUe"
+type     = "magnitude"
+label    = "$|U|(e^-)$ [km/s]"
+log      = 0
+lims     = [0.0, 700.0]
+unit     = 1e3
+colormap = "inferno"
+filename = "e_U"
+sigma    = -1
+
+[[parameter]]
+param    = "cellUe"
+type     = "xcomp"
+label    = "$U_x(e^-)$ [km/s]"
+log      = 0
+lims     = [-600.0, 600.0]
+unit     = 1e3
+colormap = "seismic"
+filename = "e_Ux"
+sigma    = -1
+
+[[parameter]]
+param    = "cellUe"
+type     = "ycomp"
+label    = "$U_y(e^-)$ [km/s]"
+log      = 0
+lims     = [-600.0, 600.0]
+unit     = 1e3
+colormap = "seismic"
+filename = "e_Uy"
+sigma    = -1
+
+[[parameter]]
+param    = "cellUe"
+type     = "zcomp"
+label    = "$U_z(e^-)$ [km/s]"
+log      = 0
+lims     = [-600.0, 600.0]
+unit     = 1e3
+colormap = "seismic"
+filename = "e_Uz"
+sigma    = -1
+
+# ---------------------------------------------------------------------------
+# Solar-wind proton bulk velocity  (v_H+sw_ave)
+# ---------------------------------------------------------------------------
+
+[[parameter]]
+param    = "v_H+sw_ave"
+type     = "magnitude"
+label    = "$|U|$(H$^+_\\mathrm{sw}$) [km/s]"
+log      = 0
+lims     = [0.0, 700.0]
+unit     = 1e3
+colormap = "inferno"
+filename = "Hsw_U"
+sigma    = -1
+
+[[parameter]]
+param    = "v_H+sw_ave"
+type     = "xcomp"
+label    = "$U_x$(H$^+_\\mathrm{sw}$) [km/s]"
+log      = 0
+lims     = [-600.0, 600.0]
+unit     = 1e3
+colormap = "seismic"
+filename = "Hsw_Ux"
+sigma    = -1
+
+[[parameter]]
+param    = "v_H+sw_ave"
+type     = "ycomp"
+label    = "$U_y$(H$^+_\\mathrm{sw}$) [km/s]"
+log      = 0
+lims     = [-600.0, 600.0]
+unit     = 1e3
+colormap = "seismic"
+filename = "Hsw_Uy"
+sigma    = -1
+
+[[parameter]]
+param    = "v_H+sw_ave"
+type     = "zcomp"
+label    = "$U_z$(H$^+_\\mathrm{sw}$) [km/s]"
+log      = 0
+lims     = [-600.0, 600.0]
+unit     = 1e3
+colormap = "seismic"
+filename = "Hsw_Uz"
+sigma    = -1
+
+# ---------------------------------------------------------------------------
+# Planetary oxygen ion bulk velocity  (v_O+_ave)
+# ---------------------------------------------------------------------------
+
+[[parameter]]
+param    = "v_O+_ave"
+type     = "magnitude"
+label    = "$|U|$(O$^{+}_\\mathrm{planet}$) [km/s]"
+log      = 0
+lims     = [0.0, 700.0]
+unit     = 1e3
+colormap = "inferno"
+filename = "Oplanet_U"
+sigma    = -1
+
+[[parameter]]
+param    = "v_O+_ave"
+type     = "xcomp"
+label    = "$U_x$(O$^{+}_\\mathrm{planet}$) [km/s]"
+log      = 0
+lims     = [-600.0, 600.0]
+unit     = 1e3
+colormap = "seismic"
+filename = "Oplanet_Ux"
+sigma    = -1
+
+[[parameter]]
+param    = "v_O+_ave"
+type     = "ycomp"
+label    = "$U_y$(O$^{+}_\\mathrm{planet}$) [km/s]"
+log      = 0
+lims     = [-600.0, 600.0]
+unit     = 1e3
+colormap = "seismic"
+filename = "Oplanet_Uy"
+sigma    = -1
+
+[[parameter]]
+param    = "v_O+_ave"
+type     = "zcomp"
+label    = "$U_z$(O$^{+}_\\mathrm{planet}$) [km/s]"
+log      = 0
+lims     = [-600.0, 600.0]
+unit     = 1e3
+colormap = "seismic"
+filename = "Oplanet_Uz"
+sigma    = -1
+
+# ---------------------------------------------------------------------------
+# Solar-wind proton temperature  (T_H+sw)
+# ---------------------------------------------------------------------------
+
+[[parameter]]
+param    = "T_H+sw"
+type     = "scalar"
+label    = "$T$(H$^+_\\mathrm{sw}$) [K]"
+log      = 1
+lims     = [1e5, 1e8]
+unit     = 1.0
+colormap = "inferno"
+filename = "Hsw_T"
+sigma    = -1
