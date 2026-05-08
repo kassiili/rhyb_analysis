@@ -17,7 +17,7 @@ from matplotlib.patches import Wedge
 
 from plot_parameters import PlotParams
 from rhybrid_configparser import RhybridConfigParser
-from tools.simrun import RhybridRun
+from simrun import RhybridRun
 
 plt.switch_backend('agg')
 HN = '(hostname = ' + socket.gethostname() + ') '
@@ -256,6 +256,17 @@ def _plane_title(coord: float, unit_str: str) -> str:
     val = str(round(coord * 10) / 10) if abs(coord) > 0 else '0'
     return val + unit_str
 
+def _render_step(toml_path: str, step: int) -> None:
+    """Top-level worker function: reconstructs the plotter from config.
+    
+    For pickling the SlicePlot3D class with multiprocessing, a new instance 
+    needs to be created at each step. This might look a bit hacky, but does 
+    not compromise efficiency as the bottlenecks in computation and memory 
+    usage are vlsv file I/O operations and figure rendering.
+    """
+    cfg = SlicePlotConfig.from_toml(toml_path)
+    plotter = SlicePlot3D(cfg)
+    plotter.plot_step(step)
 
 # ---------------------------------------------------------------------------
 # SlicePlot3D
@@ -343,11 +354,15 @@ class SlicePlot3D:
         file_time = self._read_time(step)
 
         for var_set in self._cfg.plot_params:
-            with self._open_cnt.get_lock():
-                self._open_cnt.value += 1
-                print(HN + f'[{self._open_cnt.value}] '
-                      f'{self._run.run_out_dir.name} | step {step} | '
-                      f'{var_set["param"]} {var_set["type"]}')
+            
+            print(HN + f'{self._run.run_out_dir.name} | step {step} | '
+                  f'{var_set["param"]} {var_set["type"]}')
+            
+            # with self._open_cnt.get_lock():
+            #     self._open_cnt.value += 1
+            #     print(HN + f'[{self._open_cnt.value}] '
+            #           f'{self._run.run_out_dir.name} | step {step} | '
+            #           f'{var_set["param"]} {var_set["type"]}')
 
             fig, axes = plt.subplots(
                 nrows=self._n_rows, ncols=self._n_cols,
@@ -363,12 +378,13 @@ class SlicePlot3D:
             fig.savefig(out_path, dpi=self._cfg.fig_dpi, transparent=False)
             plt.clf()
             plt.close(fig)
-
+                
     def save_all(self, steps: list[int] = None, n_cores: int = 1) -> None:
         """Render and save all time steps, optionally in parallel."""
         if n_cores > 1:
+            toml_path = self._cfg.plot_params.toml_path
             with Pool(n_cores) as pool:
-                pool.map(self.plot_step, steps)
+                pool.starmap(_render_step, [(toml_path, s) for s in steps])
         else:
             for step in steps:
                 self.plot_step(step)
