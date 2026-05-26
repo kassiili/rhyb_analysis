@@ -22,20 +22,21 @@
 
 [header]
 Ncores              = 2
-outputFolder        = "/home/kassiili/rhyb/rhyb_analysis/tools/test_figures_2d_slice_plot"
-runConfig           = "/home/kassiili/rhyb/rhyb_analysis/mars_example/mars.cfg"
-runFolder           = "/home/kassiili/rhyb/rhyb_analysis/mars_example/sim_data"
+outputFolder        = "./tools/test_figures_2d_slice_plot"
+runConfig           = "./mars_example/mars.cfg"
+runFolder           = "./mars_example/sim_data"
 runDescr            = "mars_example"
-Robject             = 3390e3
 tStartThisProcess   = 0
-tEndThisProcess     = 4000
-tStartGlobal        = 0
-tEndGlobal          = 4000
-xPlane              = -2.0
+tEndThisProcess     = 1200
+xPlane              = 0.0
 yPlane              = 0.0
 zPlane              = 0.0
 axisLimsZoom        = -1
 showPlanet          = [1, 1, 0]
+
+# Optional section to override some fields read from the run config file by default
+[run_overrides]
+r_object             = 3390e3
 
 # ---------------------------------------------------------------------------
 # Magnetic field  (cellB)

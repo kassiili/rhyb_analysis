@@ -65,6 +65,7 @@ class SlicePlotConfig:
     # --- aggregated objects (not part of the TOML header scalars) ---
     plot_params: PlotParams = field(default_factory=PlotParams)
     runs: list[RhybridRun] = field(default_factory=list)
+    run_overrides: dict = field(default_factory=dict)
 
     # --- derived / cached ---
     _fig_size: tuple[float, float] = field(init=False, repr=False)
@@ -77,7 +78,7 @@ class SlicePlotConfig:
     @classmethod
     def from_toml(cls, toml_path: str) -> 'SlicePlotConfig':
         """Build a SlicePlotConfig from a TOML plot-config file."""
-        header = load_plotter_settings(toml_path)
+        header, run_overrides = load_plotter_settings(toml_path)
 
         run_config = RhybridConfigParser()
         with open(Path(header['runConfig']).resolve()) as f:
@@ -102,9 +103,10 @@ class SlicePlotConfig:
             t_end=int(header.get('tEndThisProcess', 1_000_000)),
             plot_params=plot_params,
             runs=[run],
+            run_overrides=run_overrides
         )
 
-def load_plotter_settings(toml_path: str) -> dict:
+def load_plotter_settings(toml_path: str) -> tuple[dict, dict]:
     """ Read *toml_path* and return a validated dict of plotter settings from the header section. """
     
     if not os.path.isfile(toml_path):
@@ -118,7 +120,10 @@ def load_plotter_settings(toml_path: str) -> dict:
         raise ValueError(f'plot_parameters: no [header] block found in {toml_path}')
     
     _validate_header(header) 
-    return header        
+    
+    run_overrides = raw.get('run_overrides', {})
+    
+    return header, run_overrides
 
 def _validate_header(header: dict) -> None:
     """Raise ValueError with a clear message if *header* is malformed."""
@@ -139,11 +144,7 @@ def _validate_header(header: dict) -> None:
     if header['tStartThisProcess'] > header['tEndThisProcess']:
         raise ValueError('plot_parameters: tStart > tEnd (this process)')
     
-    if header['tStartGlobal'] > header['tEndGlobal']:
-        raise ValueError('plot_parameters: tStartGlobal > tEndGlobal')
-    
-    for key in ('tStartThisProcess', 'tEndThisProcess',
-                'tStartGlobal', 'tEndGlobal'):
+    for key in ('tStartThisProcess', 'tEndThisProcess'):
         if header[key] < 0:
             raise ValueError(f'plot_parameters: negative time value: {key} = {header[key]}')
 
@@ -290,7 +291,10 @@ class SlicePlot3D:
 
         self._cfg = cfg
         self._run = cfg.runs[0]
-        self._rp = float(self._run.config_params['r_object'])
+        self._rp = (
+            float(cfg.run_overrides['r_object']) if 'r_object' in cfg.run_overrides
+            else float(self._run.config_params['r_object'])
+        )
         self._rp_str = '$R_p$'
 
         # Figure grid: one row per run (here always 1), three columns (xz, xy, yz)
