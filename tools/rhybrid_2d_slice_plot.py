@@ -2,9 +2,11 @@
 #
 # Plots 2-D slices of RHybrid simulation output (VLSV format).
 
+import argparse
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from pathlib import Path
 
 from slice_plot_tools import SlicePlot2D, SlicePlot3D, SlicePlotConfig
 
@@ -37,7 +39,13 @@ def main(param_paths: list[str], n_cores: int = 1, header_only: bool = False):
         plotter.save_all(steps, n_cores=n_cores)
 
 if __name__ == '__main__':
-    main(["/home/kassiili/rhyb/rhyb_analysis/tools/config_2d_slice_plot/mars_example.toml"])
-    # main(["/home/kassiili/rhyb/rhyb_analysis/tools/config_2d_slice_plot/mars_example.toml"], 
-    #      n_cores=4)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-c", "--plotconfig", help="Plot configuration file", type=str,
+                        default="./tools/config_2d_slice_plot/mars_example.toml")
+    parser.add_argument("-np", "--nprocesses", help="Number of parallel processes", type=int,
+                        default=1)
+    args = parser.parse_args()
+    
+    cfg_path = str(Path(args.plotconfig).resolve())
+    main([cfg_path], n_cores=args.nprocesses)
     
