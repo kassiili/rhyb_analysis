@@ -1,0 +1,69 @@
+# particle_example.toml
+# Configuration for particle_tools.py
+#
+# Propagates test particles through the fields of one snapshot using the
+# Boris–Buneman algorithm and saves trajectories + figures.
+
+# ---------------------------------------------------------------------------
+# [header]
+# ---------------------------------------------------------------------------
+
+[header]
+runConfig    = "/home/kassiili/rhyb/rhyb_analysis/venus_example/venus_example.cfg"
+runFolder    = "/home/kassiili/rhyb/rhyb_analysis/venus_example/sim_data"
+runDescr     = "venus_example"
+
+# Snapshot step to read fields from
+step         = 20000
+
+# VLSV variable names for B, electron bulk velocity, electron pressure E-term
+varB         = "cellB"
+varUe        = "cellUe"
+varEp        = "cellEp"
+
+outputFolder = "/home/kassiili/rhyb/rhyb_analysis/venus_example/figures"
+figPrefix    = "particles"
+figDpi       = 150
+figSize      = [10, 12]
+saveFigure   = true
+
+# Integrator settings
+dt_s          = 0.5     # time step [s]
+maxTimesteps  = 500     # maximum number of Boris–Buneman steps
+linearInterp  = true    # true = bi/tri-linear; false = nearest cell
+
+# ---------------------------------------------------------------------------
+# [species]  – test-particle species
+#
+# mass   : "proton" | "oxygen" | "alpha" | "electron" | float [kg]
+# charge : charge number (multiplied internally by e = 1.6e-19 C)
+# ---------------------------------------------------------------------------
+
+[species]
+mass   = "proton"
+charge = 1.0
+label  = "H+"
+
+# ---------------------------------------------------------------------------
+# [ensemble]  – initial conditions
+#
+# kind = "line_upstream"
+#     Particles arranged along a vertical line on the upstream (x_max) face.
+#     A Gaussian thermal scatter is added to the bulk velocity.
+#
+# kind = "csv"
+#     Read initial (x, y, z, vx, vy, vz) [SI] from a CSV file.
+#     In this case bulk_velocity_ms and thermal_velocity_ms are ignored.
+# ---------------------------------------------------------------------------
+
+[ensemble]
+kind                 = "line_upstream"
+n_particles          = 10
+seed                 = 71                      # integer → reproducible run; omit for random
+bulk_velocity_ms     = [-430e3, 0.0, 0.0]      # [m/s]
+thermal_velocity_ms  = 30e3                    # std of Gaussian scatter [m/s]
+
+# --- CSV example (uncomment to use instead) ---
+# [ensemble]
+# kind = "csv"
+# file = "/path/to/initial_conditions.csv"

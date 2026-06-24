@@ -1,0 +1,88 @@
+# time_series_example.toml
+# Configuration for field_time_series.py
+#
+# Samples one or more field variables at fixed points (or along a Trajectory)
+# through every snapshot in a time range, writing a CSV and optional figures.
+
+# ---------------------------------------------------------------------------
+# [header]
+# ---------------------------------------------------------------------------
+
+[header]
+runConfig    = "/home/kassiili/rhyb/rhyb_analysis/mars_example/mars.cfg"
+runFolder    = "/home/kassiili/rhyb/rhyb_analysis/mars_example/sim_data"
+runDescr     = "mars_example"
+
+outputFolder = "/home/kassiili/rhyb/rhyb_analysis/mars_example/figures"
+figPrefix    = "time_series"
+figDpi       = 150
+figSize      = [10, 8]
+saveFigure   = true
+
+# Process only snapshots whose step number falls in [tStartThisProcess, tEndThisProcess]
+tStartThisProcess = 0
+tEndThisProcess   = 4000
+
+# ---------------------------------------------------------------------------
+# [sampling]  – what spatial points to use
+#
+# kind = "points"      – sample at the fixed [[point]] blocks below
+# kind = "trajectory"  – sample at waypoints of a Trajectory CSV;
+#                        useful for spacecraft tracks
+# ---------------------------------------------------------------------------
+
+[sampling]
+kind = "points"
+
+# --- trajectory example (uncomment to use instead of points) ---
+# [sampling]
+# kind = "trajectory"
+# file = "/path/to/trajectory.csv"   # written by Trajectory.to_csv()
+
+
+# ---------------------------------------------------------------------------
+# [[point]]  – one block per fixed sampling location
+#
+# Coordinates in metres  (x, y, z)  or in units of R_object  (x_rp, y_rp, z_rp)
+# ---------------------------------------------------------------------------
+
+[[point]]
+x_rp  = -2.0
+y_rp  =  0.0
+z_rp  =  0.0
+label = "subsolar_2Rp"
+
+[[point]]
+x_rp  =  2.0
+y_rp  =  0.0
+z_rp  =  0.0
+label = "tail_2Rp"
+
+[[point]]
+x_rp  =  0.0
+y_rp  =  2.0
+z_rp  =  0.0
+label = "flank_2Rp"
+
+
+# ---------------------------------------------------------------------------
+# [[variable]]  – same format as path_field_example.toml
+# ---------------------------------------------------------------------------
+
+[[variable]]
+name     = "cellB"
+label    = "$B$"
+unit     = 1e-9
+unit_str = "nT"
+
+[[variable]]
+name     = "n_H+sw_ave"
+label    = "$n$(H$^+_\\mathrm{sw}$)"
+unit     = 1.0
+unit_str = "m$^{-3}$"
+
+[[variable]]
+name     = "v_H+sw_ave"
+label    = "$U$(H$^+_\\mathrm{sw}$)"
+unit     = 1e3
+unit_str = "km s$^{-1}$"

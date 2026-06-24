@@ -1,0 +1,93 @@
+# path_field_example.toml
+# Configuration for field_along_path.py
+#
+# Interpolates one or more field variables at each waypoint of a parametric
+# spatial curve (trajectory) in a single simulation snapshot.
+
+# ---------------------------------------------------------------------------
+# [header]  – run location, snapshot, output settings
+# ---------------------------------------------------------------------------
+
+[header]
+
+
+runConfig    = "/home/kassiili/rhyb/rhyb_analysis/mars_example/mars.cfg"
+runFolder    = "/home/kassiili/rhyb/rhyb_analysis/mars_example/sim_data"
+runDescr     = "mars_example"
+
+# Snapshot step number to read (must match a state<step>.vlsv file)
+step         = 4000
+
+outputFolder = "/home/kassiili/rhyb/rhyb_analysis/mars_example/figures"
+figPrefix    = "path_field"
+figDpi       = 150
+figSize      = [10, 8]
+
+# Also write interpolated values as a CSV file alongside the figures
+saveCsv      = true
+
+# Render a 3-D domain + trajectory overview panel
+show3dPlot   = true
+
+# ---------------------------------------------------------------------------
+# [path]  – how to construct the Trajectory
+#
+# kind = "orbit"       circular orbit; radius_rp in units of R_object
+# kind = "line"        straight line; start_rp / end_rp in units of R_object
+# kind = "csv"         read from a CSV written by Trajectory.to_csv()
+# ---------------------------------------------------------------------------
+
+[path]
+kind      = "orbit"
+radius_rp = 1.5          # orbit radius  [R_object]
+n_points  = 200
+plane     = "xy"          # "xy" | "xz" | "yz"
+label     = "orbit_1.5Rp_xy"
+
+# --- line example (uncomment to use instead of orbit) ---
+# [path]
+# kind      = "line"
+# start_rp  = [-3.0, 0.0, 0.0]   # [R_object]
+# end_rp    = [ 3.0, 0.0, 0.0]
+# n_points  = 100
+# label     = "x_axis_line"
+
+# --- CSV example (uncomment to use instead) ---
+# [path]
+# kind  = "csv"
+# file  = "/path/to/my_trajectory.csv"
+# label = "spacecraft"   # overrides the label stored in the CSV
+
+
+# ---------------------------------------------------------------------------
+# [[variable]]  – one block per field quantity to sample
+#
+# name       : VLSV variable name
+# components : "all" → scalar / all 3 components + magnitude
+#              "magnitude" → only |v|
+#              list e.g. ["x", "z"] → specific components only
+# label      : axis label (LaTeX accepted)
+# unit       : divisor applied before plotting
+# unit_str   : unit string shown in axis label
+# ---------------------------------------------------------------------------
+
+[[variable]]
+name       = "cellB"
+components = "all"
+label      = "$B$"
+unit       = 1e-9
+unit_str   = "nT"
+
+[[variable]]
+name       = "n_H+sw_ave"
+components = "all"
+label      = "$n$(H$^+_\\mathrm{sw}$)"
+unit       = 1.0
+unit_str   = "m$^{-3}$"
+
+[[variable]]
+name       = "v_H+sw_ave"
+components = "all"
+label      = "$U$(H$^+_\\mathrm{sw}$)"
+unit       = 1e3
+unit_str   = "km s$^{-1}$"
