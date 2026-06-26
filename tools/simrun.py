@@ -1,6 +1,6 @@
 import numpy as np
 from pathlib import Path
-from typing import Union
+from typing import Union, Optional
 import re
 from analysator.vlsvfile import VlsvReader
 
@@ -11,12 +11,13 @@ class RhybridRun:
     
     _vlsv_name_pattern = re.compile(r'^state\d{8}\.vlsv$')
     
-    def __init__(self, run_config: RhybridConfigParser, run_out_dir: str, run_descr: str=""):
+    def __init__(self, run_config: RhybridConfigParser, run_out_dir: str, run_descr: str="",
+                 step_range: Optional[tuple[int, int]] = None):
         self._run_config = run_config
         self.config_params = self._read_run_config()
         
         self.run_out_dir = Path(run_out_dir).resolve()
-        self.run_out_files = self._find_vlsv_files()
+        self.run_out_files = self._find_vlsv_files(step_range)
         self._validate_vlsv_files()
         
         self.run_descr = run_descr
@@ -47,9 +48,13 @@ class RhybridRun:
         return [i for i in range(0, int(self._run_config["Simulation"]["maximum_timesteps"]) + 1, 
                                  int(self._run_config["Simulation"]["data_save_interval"]))]
     
-    def _find_vlsv_files(self) -> dict:
+    def _find_vlsv_files(self, step_range: Optional[tuple[int, int]] = None) -> dict:
         """ Collect vlsv files and check that snap times match run config. """
-        files_expected = [f"state{t:08d}.vlsv" for t in self._get_snap_times()]
+        if not step_range:
+            files_expected = [f"state{t:08d}.vlsv" for t in self._get_snap_times()]
+        else:
+            files_expected = [f"state{t:08d}.vlsv" for t in self._get_snap_times() if
+                              step_range[0] <= t <= step_range[1]]
         found = [f.name for f in sorted(self.run_out_dir.iterdir()) if self._vlsv_name_pattern.match(f.name)]
         
         if any([f not in found for f in files_expected]):

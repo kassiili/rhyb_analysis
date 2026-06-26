@@ -84,7 +84,10 @@ class SlicePlotConfig:
         with open(Path(header['runConfig']).resolve()) as f:
             run_config.read_file(f)
 
-        run = RhybridRun(run_config, header['runFolder'], header['runDescr'])
+
+        t_start=int(header.get('tStartThisProcess', 0))
+        t_end=int(header.get('tEndThisProcess', 1_000_000))
+        run = RhybridRun(run_config, header['runFolder'], header['runDescr'], step_range=(t_start, t_end))
         plot_params = PlotParams(toml_path)
 
         zoom = header.get('axisLimsZoom', None)
@@ -99,8 +102,8 @@ class SlicePlotConfig:
             z_plane=float(header.get('zPlane', 0.0)),
             axis_lims_zoom=zoom,
             show_planet=tuple(header.get('showPlanet', (1, 1, 0))),
-            t_start=int(header.get('tStartThisProcess', 0)),
-            t_end=int(header.get('tEndThisProcess', 1_000_000)),
+            t_start=t_start,
+            t_end=t_end,
             plot_params=plot_params,
             runs=[run],
             run_overrides=run_overrides
