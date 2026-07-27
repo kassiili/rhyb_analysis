@@ -50,6 +50,7 @@ class RhybridRun:
     
     def _find_vlsv_files(self, step_range: Optional[tuple[int, int]] = None) -> dict:
         """ Collect vlsv files and check that snap times match run config. """
+        print("Collecting VLSV files...")
         if not step_range:
             files_expected = [f"state{t:08d}.vlsv" for t in self._get_snap_times()]
         else:
@@ -64,7 +65,12 @@ class RhybridRun:
             )
         
         print(f'Files found: {len(found)}')
-        return {int(f.split("state")[1].split(".")[0]): VlsvReader(self.run_out_dir / f) for f in found}
+        collected = {}
+        for f in found:
+            print(f'Reading in file: {f}')
+            collected[int(f.split("state")[1].split(".")[0])] = VlsvReader(self.run_out_dir / f)
+
+        return collected
     
     def _validate_vlsv_files(self):
         """ Check the vlsv file variables match run config. """
