@@ -84,7 +84,6 @@ class SlicePlotConfig:
         with open(Path(header['runConfig']).resolve()) as f:
             run_config.read_file(f)
 
-
         t_start=int(header.get('tStartThisProcess', 0))
         t_end=int(header.get('tEndThisProcess', 1_000_000))
         run = RhybridRun(run_config, header['runFolder'], header['runDescr'], step_range=(t_start, t_end))
@@ -304,9 +303,6 @@ class SlicePlot3D:
         self._n_rows = 1
         self._n_cols = 3
 
-        # Multiprocessing-safe file-open counter (shared across workers)
-        self._open_cnt = Value('i', 0)
-
         # Resolve and cache the slice column indices once, from the first step.
         # These are fixed for the entire run (the grid doesn't change between
         # steps), so there is no need to recompute them per step.
@@ -364,12 +360,6 @@ class SlicePlot3D:
             
             print(HN + f'{self._run.run_out_dir.name} | step {step} | '
                   f'{var_set["param"]} {var_set["type"]}')
-            
-            # with self._open_cnt.get_lock():
-            #     self._open_cnt.value += 1
-            #     print(HN + f'[{self._open_cnt.value}] '
-            #           f'{self._run.run_out_dir.name} | step {step} | '
-            #           f'{var_set["param"]} {var_set["type"]}')
 
             fig, axes = plt.subplots(
                 nrows=self._n_rows, ncols=self._n_cols,
