@@ -2,10 +2,21 @@ import numpy as np
 from pathlib import Path
 from typing import Union, Optional
 import re
+import warnings
+
 from analysator.vlsvfile import VlsvReader
 
 from rhybrid_configparser import RhybridConfigParser
 from vlsv_data_reducers import reduce_vslv_data
+
+def get_time_param(vlsv_file: VlsvReader):
+    if vlsv_file.check_parameter("t"):
+        return "t"
+    elif vlsv_file.check_parameter("time"):
+        return "time"
+    else:
+        warnings.warn(f"Time parameter (expected either 't', or 'time') not found in file {vlsv_file.file_name}")
+        return ""
 
 class RhybridRun:
     

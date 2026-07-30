@@ -8,6 +8,8 @@ import tomllib
 import os
 
 import matplotlib
+from analysator.vlsvfile import VlsvReader
+
 matplotlib.use('Agg')
 import matplotlib.colors as colors
 import matplotlib.pyplot as plt
@@ -17,7 +19,8 @@ from matplotlib.patches import Wedge
 
 from plot_parameters import PlotParams
 from rhybrid_configparser import RhybridConfigParser
-from simrun import RhybridRun
+from simrun import RhybridRun, get_time_param
+from vlsv_data_reducers import read_variable_data
 
 plt.switch_backend('agg')
 HN = '(hostname = ' + socket.gethostname() + ') '
@@ -29,439 +32,196 @@ HN = '(hostname = ' + socket.gethostname() + ') '
 
 @dataclass
 class SlicePlotConfig:
-    """All configuration for one complete slice-plot job.
+    """ All configuration for a single slice-plot figure. """
 
-    Constructed directly or via the SlicePlotConfig.from_toml() factory.
-    Holds references to the parameter registry and the list of runs so
-    that the plotting classes only need to receive a single object.
-    """
+    sim_name: str= ""
+
+    # --- plot variable specs ---
+    var_name: str = ""
+    var_type: str = ""
+    var_unit: float = 1.0   # conversion factor from data to plot units
+    var_label: str = ""
+    var_vmin: float = 0.0   # in data units
+    var_vmax: float = 1.0   # in data units
+    smooth_sig: float = -1
+    colormap: Optional[str] = None
+    log_col_scale: bool = False
 
     # --- output ---
-    output_dir: str = './png/'
+    output_path: str = './png/slice_plot.png'
 
     # --- figure style ---
     fig_dpi: int = 100
     fig_resolution: tuple[int, int] = (1920, 1080)
+
+    # --- simulation box and axis limits in data units ---
+    #       - simulation box limits are used as the bounding box in data coordinates for the image
+    #       - axis limits are used as the bounds of the actual figure axis inside the image (can be e.g. zoomed)
+    sim_box_lims: list[tuple[float, float]] = field(default_factory=list)
+    axis_lims: Optional[list[tuple[float, float]]] = None
+    x_unit: float = 1.0     # conversion factor from data coordinate units to plot axis units
+    x_unit_label: str = "$R_p$"
+
+    # --- axis ticks ---
+    tick_locs: Optional[np.ndarray] = None
     tick_dir: str = 'out'
     tick_length: int = 2
     tick_width: int = 1
     x_tick_angle: int = 45
 
-    # --- slice planes (3-D runs only, in units of Rp) ---
-    x_plane: float = 0.0
-    y_plane: float = 0.0
-    z_plane: float = 0.0
-
-    # --- zoom: None means use the full simulation domain ---
-    axis_lims_zoom: Optional[list[float]] = None
+    # --- slice points for 3D simulations in format (axis, location in data coord units) ---
+    slice_points: Optional[list[tuple[int, float]]] = None
 
     # --- planet disk: (xz plane, xy plane, yz plane) ---
-    show_planet: tuple[bool, bool, bool] = (True, True, False)
-
-    # --- time range for this process ---
-    t_start: int = 0
-    t_end: int = 1_000_000
-
-    # --- aggregated objects (not part of the TOML header scalars) ---
-    plot_params: PlotParams = field(default_factory=PlotParams)
-    runs: list[RhybridRun] = field(default_factory=list)
-    run_overrides: dict = field(default_factory=dict)
+    show_planet: tuple[bool, ...] = (True, True, False)
+    r_planet: float = 1.0   # in data coord units
+    rp_str: str = "$R_p$"
 
     # --- derived / cached ---
-    _fig_size: tuple[float, float] = field(init=False, repr=False)
+    fig_size: tuple[float, float] = field(init=False, repr=False)
+    n_rows: int = field(init=False, repr=False)
+    n_cols: int = field(init=False, repr=False)
 
     def __post_init__(self):
         # Compute figure size once so callers don't repeat the arithmetic.
         w, h = self.fig_resolution
-        self._fig_size = (w / self.fig_dpi, h / self.fig_dpi)
+        self.fig_size = (w / self.fig_dpi, h / self.fig_dpi)
+        self.n_rows = 1
+        self.n_cols = 2 if not self.slice_points else len(self.slice_points)
 
-    @classmethod
-    def from_toml(cls, toml_path: str) -> 'SlicePlotConfig':
-        """Build a SlicePlotConfig from a TOML plot-config file."""
-        header, run_overrides = load_plotter_settings(toml_path)
+        if not self.axis_lims:
+            self.axis_lims = self.sim_box_lims
 
-        run_config = RhybridConfigParser()
-        with open(Path(header['runConfig']).resolve()) as f:
-            run_config.read_file(f)
+class SlicePlot:
+    """ Renders slice panels for a single snapshot of a 3D or 2D Rhybrid run. """
 
-        t_start=int(header.get('tStartThisProcess', 0))
-        t_end=int(header.get('tEndThisProcess', 1_000_000))
-        run = RhybridRun(run_config, header['runFolder'], header['runDescr'], step_range=(t_start, t_end))
-        plot_params = PlotParams(toml_path)
-
-        zoom = header.get('axisLimsZoom', None)
-        if zoom == -1:          # sentinel value used in the TOML
-            zoom = None
-
-        return cls(
-            output_dir=header.get('outputFolder', './png/'),
-            fig_dpi=header.get('figDpi', 100),
-            x_plane=float(header.get('xPlane', 0.0)),
-            y_plane=float(header.get('yPlane', 0.0)),
-            z_plane=float(header.get('zPlane', 0.0)),
-            axis_lims_zoom=zoom,
-            show_planet=tuple(header.get('showPlanet', (1, 1, 0))),
-            t_start=t_start,
-            t_end=t_end,
-            plot_params=plot_params,
-            runs=[run],
-            run_overrides=run_overrides
-        )
-
-def load_plotter_settings(toml_path: str) -> tuple[dict, dict]:
-    """ Read *toml_path* and return a validated dict of plotter settings from the header section. """
-    
-    if not os.path.isfile(toml_path):
-        raise FileNotFoundError(f'plot_parameters: config file not found: {toml_path}')
-
-    with open(toml_path, 'rb') as fh:
-        raw = tomllib.load(fh)
-
-    header = raw.get('header', {})
-    if not header:
-        raise ValueError(f'plot_parameters: no [header] block found in {toml_path}')
-    
-    _validate_header(header) 
-    
-    run_overrides = raw.get('run_overrides', {})
-    
-    return header, run_overrides
-
-def _validate_header(header: dict) -> None:
-    """Raise ValueError with a clear message if *header* is malformed."""
-    run_cfg = header['runConfig']
-    if not os.path.exists(run_cfg):
-        raise FileNotFoundError(f'plot_parameters: run config not found: {run_cfg}')
-    
-    runFolder = header['runFolder']
-    if not os.path.isdir(runFolder):
-        raise FileNotFoundError(f'plot_parameters: run folder not found: {runFolder}')
-    
-    if not any(
-        f.startswith('state') and f.endswith('.vlsv')
-        for f in os.listdir(runFolder)
-    ):    
-        raise FileNotFoundError(f'plot_parameters: no state*.vlsv found in folder: {runFolder}')
-    
-    if header['tStartThisProcess'] > header['tEndThisProcess']:
-        raise ValueError('plot_parameters: tStart > tEnd (this process)')
-    
-    for key in ('tStartThisProcess', 'tEndThisProcess'):
-        if header[key] < 0:
-            raise ValueError(f'plot_parameters: negative time value: {key} = {header[key]}')
-
-
-# ---------------------------------------------------------------------------
-# Shared rendering helpers  — pure functions, no class state
-# ---------------------------------------------------------------------------
-
-def _choose_ncol(r_plane: float, r_min: float, r_max: float,
-                 n: int, axis: str, r_object: float) -> tuple[int, float]:
-    """Return (cell index, clamped plane coordinate in Rp) for a slice plane."""
-    if r_plane > r_max or r_plane < r_min:
-        r_plane = (r_max + r_min) / 2.0
-        print(HN + f'WARNING: {axis}Plane out of domain, '
-              f'clamping to {r_plane / r_object:.2f} Rp')
-    dr = (r_max - r_min) / n
-    col = int(np.floor((r_plane - r_min) / dr))
-    return max(0, min(col, n - 1)), r_plane / r_object
-
-
-def _compute_tick_positions(zoom: list[float],
-                            nx: int, ny: int, nz: int) -> np.ndarray:
-    """Return a 'nice' array of tick positions for the zoomed domain."""
-    ranges = [
-        zoom[1] - zoom[0] if nx > 1 else -1,
-        zoom[3] - zoom[2] if ny > 1 else -1,
-        zoom[5] - zoom[4] if nz > 1 else -1,
-    ]
-    max_range = max(ranges)
-    max_coord = max(abs(v) for v in zoom)
-    scale = pow(10, np.ceil(np.log10(max_coord))) if max_coord > 0 else 1
-
-    tick_step, n_ticks = scale, -1
-    for ii, jj, kk in itertools.product(range(1, 100), (1, 2, 5), (-1, 1)):
-        tick_step = scale / (kk * jj * ii)
-        n_ticks = max_range / tick_step
-        if 5 <= n_ticks <= 15:
-            break
-    if not (5 <= n_ticks <= 15):
-        print(HN + f'WARNING: no good tick step (n_ticks={n_ticks:.1f}, step={tick_step})')
-    return np.arange(-scale, +scale, step=tick_step)
-
-
-def _maybe_smooth(arr: np.ndarray, sigma: float) -> np.ndarray:
-    if sigma > 0:
-        return sp.ndimage.gaussian_filter(arr, sigma=sigma, mode='constant')
-    return arr
-
-
-def _plot_slice(ax, mesh: np.ndarray, var_set: dict, extent: list) -> object:
-    """Call imshow for one 2-D slice; return the artist for the colorbar."""
-    unit = var_set['unit']
-    return ax.imshow(
-        mesh / unit,
-        vmin=var_set['lims'][0] / unit,
-        vmax=var_set['lims'][1] / unit,
-        cmap=var_set['colormap'],
-        extent=extent,
-        aspect='equal',
-        origin='lower',
-        interpolation='nearest',
-    )
-
-
-def _configure_axes(ax, xlabel: str, ylabel: str,
-                    title: Optional[str],
-                    xlim, ylim, ticks: np.ndarray,
-                    is_bottom_row: bool, is_first_col: bool,
-                    cfg: SlicePlotConfig) -> None:
-    if is_bottom_row:
-        ax.set_xlabel(xlabel)
-    if is_first_col:
-        ax.set_ylabel(ylabel)
-    if title is not None:
-        ax.title.set_text(title)
-    ax.set_xticks(ticks)
-    ax.tick_params('x', labelrotation=cfg.x_tick_angle)
-    ax.set_yticks(ticks)
-    ax.axis('scaled')
-    ax.set_xlim(xlim)
-    ax.set_ylim(ylim)
-
-
-def _configure_panel(ax, var_set: dict, artist, show_planet: bool,
-                     cfg: SlicePlotConfig) -> None:
-    """Overlay planet disk and set log normalisation if needed."""
-    if show_planet:
-        ax.add_artist(Wedge((0, 0), 1.0, 90, 270, fc='dimgray'))
-        ax.add_artist(Wedge((0, 0), 1.0, 270, 90, fc='w'))
-        ax.add_artist(plt.Circle((0, 0), 1.0, color='k', fill=False, lw=0.5))
-    if var_set['log']:
-        unit = var_set['unit']
-        artist.set_norm(colors.LogNorm(
-            vmin=var_set['lims'][0] / unit,
-            vmax=var_set['lims'][1] / unit))
-    ax.tick_params(which='both', direction=cfg.tick_dir,
-                   length=cfg.tick_length, width=cfg.tick_width)
-
-
-def _add_colorbar(fig, axes, artist, label: str, shrink: float = 0.5) -> None:
-    clb = fig.colorbar(artist, ax=axes.flatten(), shrink=shrink)
-    clb.ax.set_title(label)
-
-
-def _round_str(x: float) -> str:
-    return str(round(x * 10) / 10)
-
-
-def _plane_title(coord: float, unit_str: str) -> str:
-    val = str(round(coord * 10) / 10) if abs(coord) > 0 else '0'
-    return val + unit_str
-
-def _render_step(toml_path: str, step: int) -> None:
-    """Top-level worker function: reconstructs the plotter from config.
-    
-    For pickling the SlicePlot3D class with multiprocessing, a new instance 
-    needs to be created at each step. This might look a bit hacky, but does 
-    not compromise efficiency as the bottlenecks in computation and memory 
-    usage are vlsv file I/O operations and figure rendering.
-    """
-    cfg = SlicePlotConfig.from_toml(toml_path)
-    plotter = SlicePlot3D(cfg)
-    plotter.plot_step(step)
-
-# ---------------------------------------------------------------------------
-# SlicePlot3D
-# ---------------------------------------------------------------------------
-
-class SlicePlot3D:
-    """Renders xz / xy / yz slice panels for a 3-D RHybrid run.
-
-    One instance per plotting job (one TOML config).  The public interface
-    is just two methods:
-
-        plotter = SlicePlot3D(cfg)
-        plotter.plot_step(400)          # one time step
-        plotter.save_all([0, 400, 800]) # all steps, optionally parallel
-    """
-
-    def __init__(self, cfg: SlicePlotConfig) -> None:
-        if len(cfg.runs) != 1:
-            raise ValueError(
-                f'SlicePlot3D expects exactly one run, got {len(cfg.runs)}')
-
+    def __init__(self, vlsv_file_path: Path, cfg: SlicePlotConfig):
         self._cfg = cfg
-        self._run = cfg.runs[0]
-        self._rp = (
-            float(cfg.run_overrides['r_object']) if 'r_object' in cfg.run_overrides
-            else float(self._run.config_params['r_object'])
-        )
-        self._rp_str = '$R_p$'
 
-        # Figure grid: one row per run (here always 1), three columns (xz, xy, yz)
-        self._n_rows = 1
-        self._n_cols = 3
+        # Get simulation data:
+        vr = VlsvReader(vlsv_file_path)
+        self.time = vr.read_parameter(get_time_param(vr))
+        self.timestep = vr.read_parameter("timestep")
+        self.var_data = read_variable_data(vr, cfg.var_name, cfg.var_type)
+        self.n_cell = self.var_data.shape
+        self.sim_dim = len(self.n_cell)
 
-        # Resolve and cache the slice column indices once, from the first step.
-        # These are fixed for the entire run (the grid doesn't change between
-        # steps), so there is no need to recompute them per step.
-        self._yz_col: Optional[int] = None   # column index for the x-plane cut
-        self._xz_col: Optional[int] = None   # column index for the y-plane cut
-        self._xy_col: Optional[int] = None   # column index for the z-plane cut
-        self._clamped_x: Optional[float] = None  # actual x_plane after clamping (Rp)
-        self._clamped_y: Optional[float] = None
-        self._clamped_z: Optional[float] = None
-        self._zoom: Optional[list[float]] = None
-        self._ticks: Optional[np.ndarray] = None
+        # Determine slice columns in data array in format (axis, idx, location in m):
+        self.slice_points = [(-1, -1, -1)] if not cfg.slice_points else \
+            [(axis, self._choose_ncol(axis, sloc), sloc) for (axis, sloc) in cfg.slice_points]
 
-        self._init_geometry()
+    def _choose_ncol(self, axis, sloc) -> int:
+        """Return cell index for a slice plane."""
+        (r_min, r_max) = self._cfg.sim_box_lims[axis]
+        n = self.n_cell[axis]
+        saxis_name = ("x", "y", "z")[axis]
 
-    # ------------------------------------------------------------------
-    # Initialisation helpers
-    # ------------------------------------------------------------------
+        if sloc > r_max or sloc < r_min:
+            sloc = (r_max + r_min) / 2.0
+            print(HN + f'WARNING: {saxis_name}-plane out of domain, '
+                       f'clamping to {sloc / self._cfg.r_planet:.2f} Rp')
+        dr = (r_max - r_min) / n
+        col = int(np.floor((sloc - r_min) / dr))
+        return max(0, min(col, n - 1))
 
-    def _init_geometry(self) -> None:
-        """Resolve slice indices and zoom limits from the first VLSV file."""
-        domain = self._run.config_params['domain']
-        nx = domain['x_size']
-        ny = domain['y_size']
-        nz = domain['z_size']
-        xmin, xmax = domain['x_min'], domain['x_max']
-        ymin, ymax = domain['y_min'], domain['y_max']
-        zmin, zmax = domain['z_min'], domain['z_max']
+    def render_plot(self) -> None:
 
-        rp = self._rp
-        cfg = self._cfg
+        print(HN + f'{self._cfg.sim_name} | {self.timestep} | '
+                   f'{self._cfg.var_name} {self._cfg.var_type}')
 
-        self._yz_col, self._clamped_x = _choose_ncol(
-            cfg.x_plane * rp, xmin, xmax, nx, 'x', rp)
-        self._xz_col, self._clamped_y = _choose_ncol(
-            cfg.y_plane * rp, ymin, ymax, ny, 'y', rp)
-        self._xy_col, self._clamped_z = _choose_ncol(
-            cfg.z_plane * rp, zmin, zmax, nz, 'z', rp)
+        vmin = self._cfg.var_vmin / self._cfg.var_unit
+        vmax = self._cfg.var_vmax / self._cfg.var_unit
+        rp_str = self._cfg.rp_str
 
-        # Axis limits in Rp
-        full_zoom = [xmin/rp, xmax/rp, ymin/rp, ymax/rp, zmin/rp, zmax/rp]
-        self._zoom = cfg.axis_lims_zoom if cfg.axis_lims_zoom is not None \
-                     else full_zoom
-        self._axis_lims = full_zoom
-        self._ticks = _compute_tick_positions(self._zoom, nx, ny, nz)
+        fig, axes = plt.subplots(
+            nrows=self._cfg.n_rows, ncols=self._cfg.n_cols,
+            figsize=self._cfg.fig_size,
+            frameon=True, squeeze=False)
 
-    # ------------------------------------------------------------------
-    # Public interface
-    # ------------------------------------------------------------------
+        is_first_col = True
+        a_cbar = None
+        for ax, (saxis, sidx, sloc), show_planet in zip(
+                axes[0], self.slice_points, self._cfg.show_planet):
+            plot_data = self.var_data.take(sidx, axis=saxis) if saxis != -1 else self.var_data
+            plot_data = self._maybe_smooth(plot_data, self._cfg.smooth_sig) / self._cfg.var_unit
 
-    def plot_step(self, step: int) -> None:
-        """Render and save all parameter panels for one time step."""
-        file_time = self._read_time(step)
+            # Helpers:
+            list_drop_i = lambda l, i_drop: [item for i, item in enumerate(l) if i != i_drop]
+            flatten_lims = lambda limlist: sum([list(lims) for lims in limlist], [])
 
-        for var_set in self._cfg.plot_params:
-            
-            print(HN + f'{self._run.run_out_dir.name} | step {step} | '
-                  f'{var_set["param"]} {var_set["type"]}')
+            # Get axis details for the slice:
+            sbox_lims = [(l[0] / self._cfg.x_unit, l[1] / self._cfg.x_unit) for l in self._cfg.sim_box_lims]
+            ax_lims = [(l[0] / self._cfg.x_unit, l[1] / self._cfg.x_unit) for l in self._cfg.axis_lims]
+            image_extent = flatten_lims(list_drop_i(sbox_lims, saxis)) if saxis != -1 else sbox_lims
+            ax_lims = list_drop_i(ax_lims, saxis) if saxis != -1 else ax_lims
+            xyz = ["z", "y", "x"]
+            saxis_name = xyz[saxis]
+            ax_names = list_drop_i(xyz, saxis) if saxis != -1 else ["x", "y"]   # TODO: Confirm the 2D array axis order!
 
-            fig, axes = plt.subplots(
-                nrows=self._n_rows, ncols=self._n_cols,
-                figsize=self._cfg._fig_size,
-                frameon=True, squeeze=False)
-
-            self._render_panels(fig, axes, var_set, step, file_time)
-
-            out_name = (
-                f'{var_set["filename"]}_state{step:08d}.vlsv.png'
+            a_cbar = ax.imshow(
+                plot_data,
+                vmin=vmin,
+                vmax=vmax,
+                cmap=self._cfg.colormap,
+                extent=image_extent,
+                aspect='equal',
+                origin='lower',
+                interpolation='nearest',
             )
-            out_path = Path(self._cfg.output_dir) / out_name
-            fig.savefig(out_path, dpi=self._cfg.fig_dpi, transparent=False)
-            plt.clf()
-            plt.close(fig)
-                
-    def save_all(self, steps: list[int] = None, n_cores: int = 1) -> None:
-        """Render and save all time steps, optionally in parallel."""
-        if n_cores > 1:
-            toml_path = self._cfg.plot_params.toml_path
-            with Pool(n_cores) as pool:
-                pool.starmap(_render_step, [(toml_path, s) for s in steps])
-        else:
-            for step in steps:
-                self.plot_step(step)
 
-    # ------------------------------------------------------------------
-    # Rendering
-    # ------------------------------------------------------------------
+            self._configure_axes(
+                ax,
+                f'${ax_names[0]}$ [{self._cfg.x_unit_label}]',
+                f'${ax_names[1]}$ [{self._cfg.x_unit_label}]',
+                f'{self.sim_dim}D: ${"".join(ax_names)}$ '
+                f'(${saxis_name}=${_plane_title(sloc / self._cfg.x_unit, self._cfg.x_unit_label)})',
+                ax_lims[0], ax_lims[1],
+                is_bottom_row=True, is_first_col=is_first_col)
+            self._configure_panel(ax, vmin, vmax, a_cbar, show_planet)
 
-    def _read_time(self, step: int) -> float:
-        result = self._run.read_parameter(['t'], [step])
-        return float(result['t'][0])
-
-    def _load_data(self, var_set: dict, step: int) -> np.ndarray:
-        """Read variable data for one step and return as a (nz, ny, nx) array."""
-
-        # read_variable_data already applies CellID ordering and reshapes,
-        # so data is (nz, ny, nx) — just index [0] for the step axis.
-        var, vtype = var_set['param'], var_set['type']
-        data = self._run.read_variable_data(var, vtype, step)[".".join([var, vtype])][0]
-
-        return data
-
-    def _render_panels(self, fig, axes, var_set: dict,
-                       step: int, file_time: float) -> None:
-        """Render the three slice panels (xz, xy, yz) into axes[0][0..2]."""
-        D = self._load_data(var_set, step)
-        sigma = var_set['sigma']
-        lims = self._axis_lims
-        zoom = self._zoom
-        ticks = self._ticks
-        rp_str = self._rp_str
-        cfg = self._cfg
-        is_only_row = True   # SlicePlot3D always has exactly one run / one row
-
-        # --- xz panel (column 0) ---
-        mesh_xz = _maybe_smooth(D[:, self._xz_col, :], sigma)
-        a = _plot_slice(axes[0][0], mesh_xz, var_set,
-                        [lims[0], lims[1], lims[4], lims[5]])
-        _configure_axes(
-            axes[0][0],
-            f'$x$ [{rp_str}]', f'$z$ [{rp_str}]',
-            f'3D: $xz$ ($y=$ {_plane_title(self._clamped_y, rp_str)})',
-            zoom[0:2], zoom[4:6], ticks,
-            is_bottom_row=is_only_row, is_first_col=True, cfg=cfg)
-        _configure_panel(axes[0][0], var_set, a, cfg.show_planet[0], cfg)
-
-        # --- xy panel (column 1, carries the time stamp in its title) ---
-        mesh_xy = _maybe_smooth(D[self._xy_col, :, :], sigma)
-        a = _plot_slice(axes[0][1], mesh_xy, var_set,
-                        [lims[0], lims[1], lims[2], lims[3]])
-        _configure_axes(
-            axes[0][1],
-            f'$x$ [{rp_str}]', f'$y$ [{rp_str}]',
-            (f'$t=$ {_round_str(file_time)} s\n'
-             f'3D: $xy$ ($z=$ {_plane_title(self._clamped_z, rp_str)})'),
-            zoom[0:2], zoom[2:4], ticks,
-            is_bottom_row=is_only_row, is_first_col=False, cfg=cfg)
-        _configure_panel(axes[0][1], var_set, a, cfg.show_planet[1], cfg)
-
-        # --- yz panel (column 2) ---
-        mesh_yz = _maybe_smooth(D[:, :, self._yz_col], sigma)
-        a = _plot_slice(axes[0][2], mesh_yz, var_set,
-                        [lims[2], lims[3], lims[4], lims[5]])
-        _configure_axes(
-            axes[0][2],
-            f'$y$ [{rp_str}]', f'$z$ [{rp_str}]',
-            f'3D: $yz$ ($x=$ {_plane_title(self._clamped_x, rp_str)})',
-            zoom[2:4], zoom[4:6], ticks,
-            is_bottom_row=is_only_row, is_first_col=False, cfg=cfg)
-        _configure_panel(axes[0][2], var_set, a, cfg.show_planet[2], cfg)
+            is_first_col = False
 
         fig.tight_layout()
-        _add_colorbar(fig, axes, a, var_set['str'], shrink=0.5)
-        
+        self._add_colorbar(fig, axes, a_cbar)
 
-class SlicePlot2D:
-    def __init__(self, cfg: SlicePlotConfig): ...
+        fig.savefig(self._cfg.output_path, dpi=self._cfg.fig_dpi, transparent=False)
+        plt.clf()
+        plt.close(fig)
 
-    def plot_step(self, step: int) -> None:
-        """Render and save all parameter panels for one time step."""
+    def _maybe_smooth(self, arr: np.ndarray) -> np.ndarray:
+        sigma = self._cfg.smooth_sig
+        if sigma > 0:
+            return sp.ndimage.gaussian_filter(arr, sigma=sigma, mode='constant')
+        return arr
 
-    def save_all(self, steps: list[int], n_cores: int = 1) -> None:
-        """Dispatch plot_step over all steps, optionally in parallel."""
+    def _configure_axes(self, ax, xlabel: str, ylabel: str,
+                        title: Optional[str], xlim, ylim,
+                        is_bottom_row: bool, is_first_col: bool) -> None:
+        if is_bottom_row:
+            ax.set_xlabel(xlabel)
+        if is_first_col:
+            ax.set_ylabel(ylabel)
+        if title is not None:
+            ax.title.set_text(title)
+        if self._cfg.tick_locs:
+            ax.set_xticks(self._cfg.tick_locs)
+            ax.set_yticks(self._cfg.tick_locs)
+        ax.tick_params('x', labelrotation=self._cfg.x_tick_angle)
+        ax.axis('scaled')
+        ax.set_xlim(xlim)
+        ax.set_ylim(ylim)
+
+    def _configure_panel(self, ax, vmin: float, vmax: float, artist, show_planet: bool) -> None:
+        """Overlay planet disk and set log normalisation if needed."""
+        if show_planet:
+            ax.add_artist(Wedge((0, 0), 1.0, 90, 270, fc='dimgray'))
+            ax.add_artist(Wedge((0, 0), 1.0, 270, 90, fc='w'))
+            ax.add_artist(plt.Circle((0, 0), 1.0, color='k', fill=False, lw=0.5))
+        if self._cfg.log_col_scale:
+            artist.set_norm(colors.LogNorm(vmin=vmin, vmax=vmax))
+        ax.tick_params(which='both', direction=self._cfg.tick_dir,
+                       length=self._cfg.tick_length, width=self._cfg.tick_width)
+
+    def _add_colorbar(self, fig, axes, artist) -> None:
+        clb = fig.colorbar(artist, ax=axes.flatten(), shrink=0.5)
+        clb.ax.set_title(self._cfg.var_label)

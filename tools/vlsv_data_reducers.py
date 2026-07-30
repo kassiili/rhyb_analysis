@@ -2,7 +2,24 @@ import numpy as np
 
 from analysator.vlsvfile import VlsvReader
 
-def reduce_vslv_data(var_name, out_type, vr: VlsvReader):
+def read_variable_data(vr: VlsvReader, var_name: str, var_type: str, order="CellID")\
+        -> np.ma.MaskedArray:
+    """ Read data from vlsv file and return as array.
+
+    3D simulation grid data arrays are ordered as (z, y, x).
+    """
+    if order == "CellID":
+        [mx, my, mz] = vr.get_spatial_mesh_size()
+        [sx, sy, sz] = vr.get_spatial_block_size()
+        nx, ny, nz = mx * sx, my * sy, mz * sz
+        cell_id_order = vr.read_variable('CellID').argsort()
+
+        # Order and reshape the array in compliance with Rhybrid convention:
+        return reduce_vslv_data(var_name, var_type, vr)[cell_id_order].reshape(nz, ny, nx)
+    else:
+        return reduce_vslv_data(var_name, var_type, vr)
+
+def reduce_vslv_data(var_name: str, out_type: str, vr: VlsvReader) -> np.ma.MaskedArray:
     # Basic types:
     if out_type == 'scalar':
         return _scalar(vr.read_variable_info(var_name).data)
@@ -22,16 +39,16 @@ def reduce_vslv_data(var_name, out_type, vr: VlsvReader):
     
     raise ValueError('Unknown parameter type: ' + out_type)
     
-def _scalar(data):
+def _scalar(data: np.ma.MaskedArray) -> np.ma.MaskedArray:
     return data
 
-def _magnitude(data):
-    return np.sqrt((data ** 2).sum(axis=1))
+def _magnitude(data: np.ma.MaskedArray) -> np.ma.MaskedArray:
+    return np.ma.sqrt((data ** 2).sum(axis=1))
 
-def _vec_component(i, data):
+def _vec_component(i: int, data: np.ma.MaskedArray) -> np.ma.MaskedArray:
     return data[:, i]
 
-def _nvO(nO_i, VO_i):
+def _nvO(n_o: np.ma.MaskedArray, v_o: np.ma.MaskedArray) -> np.ma.MaskedArray:
     """ Oxygen ion momentum density per ion mass. """
-    VtotO = np.sqrt((VO_i ** 2).sum(axis=1))
-    return nO_i * VtotO
+    vtot_o = np.ma.sqrt((v_o ** 2).sum(axis=1))
+    return n_o * vtot_o
