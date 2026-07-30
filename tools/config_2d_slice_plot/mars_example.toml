@@ -32,11 +32,9 @@ xPlane              = 0.0
 yPlane              = 0.0
 zPlane              = 0.0
 axisLimsZoom        = -1
+#axisUnit           = 1.0
+#axisUnitLabel      = "m"
 showPlanet          = [1, 1, 0]
-
-# Optional section to override some fields read from the run config file by default
-[run_overrides]
-r_object             = 3390e3
 
 # ---------------------------------------------------------------------------
 # Magnetic field  (cellB)

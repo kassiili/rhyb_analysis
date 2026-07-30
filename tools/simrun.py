@@ -198,6 +198,12 @@ class RhybridRun:
     def describe_vlsv_files(self):
         return
 
+    def get_vlsv_file(self, step: int):
+        return self.run_out_files[step]
+
+    def get_vlsv_file_path(self, step: int):
+        return self.run_out_files[step].file_name
+
 
 if __name__ == "__main__":
     config = RhybridConfigParser()

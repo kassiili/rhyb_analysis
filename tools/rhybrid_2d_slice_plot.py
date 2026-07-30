@@ -8,22 +8,22 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-from slice_plot_tools import SlicePlot2D, SlicePlot3D, SlicePlotConfig
+from slice_plot_tools import SlicePlotJob, SlicePlotJobConfig
 
 plt.switch_backend('agg')
 
-def print_run_header(cfg: SlicePlotConfig):
+def print_run_header(cfg: SlicePlotJobConfig):
     return
 
-def print_parameter_header(cfg: SlicePlotConfig):
+def print_parameter_header(cfg: SlicePlotJobConfig):
     return
 
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
-def main(param_paths: list[str], n_cores: int = 1, header_only: bool = False):
-    configs = [SlicePlotConfig.from_toml(p) for p in param_paths]
+def main(param_paths: list[str], n_cores: int = None, header_only: bool = False):
+    configs = [SlicePlotJobConfig.from_toml(p) for p in param_paths]
     
     if header_only:
         for cfg in configs:
@@ -32,11 +32,8 @@ def main(param_paths: list[str], n_cores: int = 1, header_only: bool = False):
         return
 
     for cfg in configs:
-        PlotterClass = SlicePlot2D if cfg.runs[0].config_params['domain']['n_dims'] == 2 \
-                       else SlicePlot3D
-        plotter = PlotterClass(cfg)
-        steps = cfg.runs[0].get_steps_in_range(cfg.t_start, cfg.t_end)
-        plotter.save_all(steps, n_cores=n_cores)
+        plotter = SlicePlotJob(cfg)
+        plotter.save_all(n_cores=n_cores)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
