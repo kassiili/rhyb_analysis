@@ -6,7 +6,7 @@ def read_variable_data(vr: VlsvReader, var_name: str, var_type: str, order="Cell
         -> np.ma.MaskedArray:
     """ Read data from vlsv file and return as array.
 
-    3D simulation grid data arrays are ordered as (z, y, x).
+    3D simulation grid data arrays are ordered as (x, y, z).
     """
     if order == "CellID":
         [mx, my, mz] = vr.get_spatial_mesh_size()
@@ -15,9 +15,12 @@ def read_variable_data(vr: VlsvReader, var_name: str, var_type: str, order="Cell
         cell_id_order = vr.read_variable('CellID').argsort()
 
         # Order and reshape the array in compliance with Rhybrid convention:
-        return reduce_vslv_data(var_name, var_type, vr)[cell_id_order].reshape(nz, ny, nx)
+        out = reduce_vslv_data(var_name, var_type, vr)[cell_id_order].reshape(nz, ny, nx)
     else:
-        return reduce_vslv_data(var_name, var_type, vr)
+        out = reduce_vslv_data(var_name, var_type, vr)
+
+    # In Rhybrid snapshot files, the axes are ordered as (z,y,x) so we permute to (x,y,z):
+    return out.transpose(2, 1, 0)
 
 def reduce_vslv_data(var_name: str, out_type: str, vr: VlsvReader) -> np.ma.MaskedArray:
     # Basic types:

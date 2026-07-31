@@ -51,12 +51,12 @@ class SlicePlotJobConfig:
     tick_width: int = 1
     x_tick_angle: int = 45
 
-    # --- slice planes (3-D runs only, in units of Rp) ---
+    # --- slice planes (3-D runs only, in plot axis units) ---
     x_plane: float = 0.0
     y_plane: float = 0.0
     z_plane: float = 0.0
 
-    # --- zoom: None means use the full simulation domain ---
+    # --- zoom axis limits (in plot axis units): None means use the full simulation domain ---
     axis_lims_zoom: Optional[list[float]] = None
 
     # --- axis unit: conversion factor from data coordinate units to plot axis units ---
@@ -97,6 +97,8 @@ class SlicePlotJobConfig:
         if not axis_unit:
             axis_unit = float(run.config_params['r_object'])
             axis_unit_label = "$R_p$"
+        else:
+            axis_unit = float(axis_unit)
 
         return cls(
             n_cores=header.get("Ncores", 1),
@@ -185,9 +187,9 @@ class SlicePlotJob:
 
         self._job_cfg = cfg
         sim_box_lims, axis_lims, ticks = self._init_geometry()
-        slice_points = [(0, self._job_cfg.z_plane*self._job_cfg.axis_unit),
+        slice_points = [(0, self._job_cfg.x_plane * self._job_cfg.axis_unit),
                         (1, self._job_cfg.y_plane * self._job_cfg.axis_unit),
-                        (2, self._job_cfg.x_plane * self._job_cfg.axis_unit)]
+                        (2, self._job_cfg.z_plane * self._job_cfg.axis_unit)]
         self._global_plot_params = dict(
             sim_name=self._job_cfg.runs[0].run_descr,
 
@@ -223,15 +225,15 @@ class SlicePlotJob:
     def _init_geometry(self) -> tuple[list, list, np.ndarray]:
         """Resolve global axis parameters."""
         domain = self._job_cfg.runs[0].config_params['domain']
-        sim_box_lims = [(domain['z_min'], domain['z_max']),
+        sim_box_lims = [(domain['x_min'], domain['x_max']),
                         (domain['y_min'], domain['y_max']),
-                        (domain['x_min'], domain['x_max'])]
+                        (domain['z_min'], domain['z_max'])]
 
         if self._job_cfg.axis_lims_zoom:
-            zoom = self._job_cfg.axis_lims_zoom
+            zoom = [lim * self._job_cfg.axis_unit for lim in self._job_cfg.axis_lims_zoom]
         else:
-            zoom = [domain['z_min'], domain['z_max'], domain['y_min'], domain['y_max'],
-                    domain['x_min'], domain['x_max']]
+            zoom = [domain['x_min'], domain['x_max'], domain['y_min'], domain['y_max'],
+                    domain['z_min'], domain['z_max']]
 
         axis_lims = [(zoom[0], zoom[1]), (zoom[2], zoom[3]), (zoom[4], zoom[5])]
 
@@ -264,8 +266,8 @@ class SlicePlotJob:
                         var_type=var_opts["type"],
                         var_unit=var_opts["unit"],
                         var_label=var_opts["str"],
-                        var_vmin=var_opts["lims"][0],
-                        var_vmax=var_opts["lims"][1],
+                        var_vmin=var_opts["lims"][0] * var_opts["unit"],
+                        var_vmax=var_opts["lims"][1] * var_opts["unit"],
                         smooth_sig=var_opts["sigma"],
                         colormap=var_opts["colormap"],
                         log_col_scale=var_opts["log"],
@@ -460,14 +462,14 @@ class SlicePlot:
             # Get axis details for the slice:
             sbox_lims = [(l[0] / self._cfg.x_unit, l[1] / self._cfg.x_unit) for l in self._cfg.sim_box_lims]
             ax_lims = [(l[0] / self._cfg.x_unit, l[1] / self._cfg.x_unit) for l in self._cfg.axis_lims]
-            image_extent = flatten_lims(list_drop_i(sbox_lims, saxis)) if saxis != -1 else sbox_lims
+            image_extent = flatten_lims(list_drop_i(sbox_lims, saxis)) if saxis != -1 else flatten_lims(sbox_lims)
             ax_lims = list_drop_i(ax_lims, saxis) if saxis != -1 else ax_lims
-            xyz = ["z", "y", "x"]
+            xyz = ["x", "y", "z"]
             saxis_name = xyz[saxis]
             ax_names = list_drop_i(xyz, saxis) if saxis != -1 else ["x", "y"]   # TODO: Confirm the 2D array axis order!
 
             a_cbar = ax.imshow(
-                plot_data,
+                plot_data.transpose(),
                 vmin=vmin,
                 vmax=vmax,
                 cmap=self._cfg.colormap,
@@ -489,9 +491,9 @@ class SlicePlot:
 
             is_first_col = False
 
+        fig.suptitle(f"$t = {str(round(self.time * 10) / 10)}$ s")
         fig.tight_layout()
         self._add_colorbar(fig, axes, a_cbar)
-        fig.suptitle(f"$t = {str(round(self.time * 10) / 10)}$ s")
 
         fig_path = Path(self._cfg.output_dir) / self._cfg.output_name
         fig.savefig(fig_path, dpi=self._cfg.fig_dpi, transparent=False)
@@ -533,7 +535,11 @@ class SlicePlot:
                        length=self._cfg.tick_length, width=self._cfg.tick_width)
 
     def _add_colorbar(self, fig, axes, artist) -> None:
-        clb = fig.colorbar(artist, ax=axes.flatten(), shrink=0.5)
+
+        # Try to compute a reasonably sized space for the colorbar wrt. the starting point of 0.15 times the
+        # std. axis size of a 1920 x 1080 figure:
+        cbar_space = 0.15 / ((fig.get_figwidth() / 1920) / (fig.get_figheight() / 1080))
+        clb = fig.colorbar(artist, ax=axes.flatten(), shrink=0.5, fraction=cbar_space)
         clb.ax.set_title(self._cfg.var_label)
 
     def _plane_title(self, coord: float, unit_str: str) -> str:

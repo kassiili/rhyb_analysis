@@ -40,7 +40,7 @@ if __name__ == '__main__':
     parser.add_argument("-c", "--plotconfig", help="Plot configuration file", type=str,
                         default="./tools/config_2d_slice_plot/mars_example.toml")
     parser.add_argument("-np", "--nprocesses", help="Number of parallel processes", type=int,
-                        default=1)
+                        default=None)
     args = parser.parse_args()
     
     cfg_path = str(Path(args.plotconfig).resolve())

@@ -3,5 +3,6 @@ venus_test/*
 rikus_tools/*
 vlsv_tutorial/*
 
+*.pyc
 *.png
 *.vlsv

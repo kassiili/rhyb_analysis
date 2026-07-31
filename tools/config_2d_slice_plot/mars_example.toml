@@ -34,7 +34,7 @@ zPlane              = 0.0
 axisLimsZoom        = -1
 #axisUnit           = 1.0
 #axisUnitLabel      = "m"
-showPlanet          = [1, 1, 0]
+showPlanet          = [0, 1, 1]
 
 # ---------------------------------------------------------------------------
 # Magnetic field  (cellB)
